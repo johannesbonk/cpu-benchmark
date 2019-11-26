@@ -17,14 +17,14 @@
 #include <errno.h>
 #include "cpuinfo.h"
 
-#define MEASUREMENT_ITERATIONS 10
+#define MEASUREMENT_ITERATIONS 10000
 
 //***********************************************
 //************HELPER_FUNCTIONS**************
 //***********************************************
 
 static char *random_string(char *str, size_t size) {
-    const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!,;.:?";
+    const char charset[] = "0123456789";
     if(size) {
         --size;
         for (size_t i=0; i<size; i++) {
@@ -73,7 +73,7 @@ uint64_t emulated_lzcnt(uint64_t val) {
 double abm_bench(bool abm_supported, bool popcnt_supported) {
     double time_sum = 0.0;
     struct timeval start_time, end_time;
-    const size_t string_len = 2;
+    const size_t string_len = 16;
     uint64_t fir_str_num = 0;
     uint64_t sec_str_num = 0;
     uint64_t fir_str_hw = 0;
@@ -83,14 +83,14 @@ double abm_bench(bool abm_supported, bool popcnt_supported) {
     uint64_t hamming_distance = 0;
     uint64_t hamming_distance_lz = 0;
     uint64_t temp = 0;
-    char *fir_str = malloc(sizeof(char) * string_len);
-    char *sec_str = malloc(sizeof(char) * string_len);
 
     for(uint16_t i=0; i<MEASUREMENT_ITERATIONS; i++) {
-        random_string(fir_str, string_len);
-        random_string(sec_str, string_len);
-
-        fir_str_num = strtol(fir_str, NULL, 16);
+        const char fir_str[string_len];
+        const char sec_str[string_len];
+        random_string((char *)&fir_str, string_len);
+        random_string((char *)&sec_str, string_len);
+        
+        fir_str_num = strtol(fir_str, NULL, 10);
         if(fir_str_num == 0) {
             if(errno == EINVAL) {
                 printf("Conversion error occurred: %d\n", errno);
@@ -163,8 +163,6 @@ double abm_bench(bool abm_supported, bool popcnt_supported) {
         time_sum += (double) (end_time.tv_usec - start_time.tv_usec);
     }
 
-    free(fir_str);
-    free(sec_str);
     return (double) (time_sum/10);
 }
 
