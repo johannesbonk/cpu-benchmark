@@ -17,7 +17,7 @@
 #include <errno.h>
 #include "cpuinfo.h"
 
-#define MEASUREMENT_ITERATIONS 10000
+#define MEASUREMENT_ITERATIONS 100000
 
 //***********************************************
 //************HELPER_FUNCTIONS**************
@@ -73,91 +73,97 @@ uint64_t emulated_lzcnt(uint64_t val) {
 double abm_bench(bool abm_supported, bool popcnt_supported) {
     double time_sum = 0.0;
     struct timeval start_time, end_time;
+    const size_t string_cnt = 8;
     const size_t string_len = 16;
-    uint64_t fir_str_num = 0;
-    uint64_t sec_str_num = 0;
-    uint64_t fir_str_hw = 0;
-    uint64_t sec_str_hw = 0;
-    uint64_t fir_str_lz = 0;
-    uint64_t sec_str_lz = 0;
-    uint64_t hamming_distance = 0;
-    uint64_t hamming_distance_lz = 0;
-    uint64_t temp = 0;
+    uint64_t fir_str_num[string_cnt];
+    uint64_t sec_str_num[string_cnt];
+    uint64_t fir_str_hw[string_cnt];
+    uint64_t sec_str_hw[string_cnt];
+    uint64_t fir_str_lz[string_cnt];
+    uint64_t sec_str_lz[string_cnt];
+    uint64_t hamming_distance[string_cnt];
+    uint64_t hamming_distance_lz[string_cnt];
+    uint64_t temp[string_cnt];
 
-    for(uint16_t i=0; i<MEASUREMENT_ITERATIONS; i++) {
-        const char fir_str[string_len];
-        const char sec_str[string_len];
-        random_string((char *)&fir_str, string_len);
-        random_string((char *)&sec_str, string_len);
-        
-        fir_str_num = strtol(fir_str, NULL, 10);
-        if(fir_str_num == 0) {
-            if(errno == EINVAL) {
-                printf("Conversion error occurred: %d\n", errno);
+    for(uint32_t i=0; i<MEASUREMENT_ITERATIONS; i++) {
+        const char fir_str[string_cnt][string_len];
+        const char sec_str[string_cnt][string_len];
+        for(uint8_t k=0; k<string_cnt; k++) {
+            random_string((char *)&fir_str[k], string_len);
+            random_string((char *)&sec_str[k], string_len);
+
+            fir_str_num[k] = strtol(fir_str[k], NULL, 10);
+            if(fir_str_num[k] == 0) {
+                if(errno == EINVAL) {
+                    printf("Conversion error occurred: %d\n", errno);
+                }
+                if (errno == ERANGE) {
+                    printf("The value provided was out of range\n");
+                }
             }
-            if (errno == ERANGE) {
-                printf("The value provided was out of range\n");
-            }
-        }
-        sec_str_num = strtol(sec_str, NULL, 10);
-        if(sec_str_num == 0) {
-            if(errno == EINVAL) {
-                printf("Conversion error occurred: %d\n", errno);
-            }
-            if (errno == ERANGE) {
-                printf("The value provided was out of range\n");
+            sec_str_num[k] = strtol(sec_str[k], NULL, 10);
+            if(sec_str_num[k] == 0) {
+                if(errno == EINVAL) {
+                    printf("Conversion error occurred: %d\n", errno);
+                }
+                if (errno == ERANGE) {
+                    printf("The value provided was out of range\n");
+                }
             }
         }
 
         gettimeofday(&start_time, NULL);
-        if(abm_supported || popcnt_supported) {
-            //Hamming Weight calculation
-            __asm__ volatile ("popcntq %2, %0 \n\t"  //Hamming Weight of first string
-                              "popcntq %3, %1 \n\t" //Hamming Weight of second string
-                :"=r"(fir_str_hw), "=r"(sec_str_hw)
-                :"r"(fir_str_num), "r"(sec_str_num)
-                :
-            );
-
-            __asm__ volatile ("popcntq %1, %0"  //Hamming Wight of second string
-                :"=r"(sec_str_hw)
-                :"r"(sec_str_num)
-                :
-            );
-
-            //Hamming Distance of first string and second string
-            //Hamming Distance calculation HammingDistance(bitstring, bitstring2) == HammingWeight(bitstring ^ bitstring2)
-            temp = fir_str_num ^ sec_str_num;
-            __asm__ volatile ("popcntq %1, %0"
-                :"=r"(hamming_distance)
-                :"r"(temp)
-                :
-            );
-        } else {
+        for(uint8_t h=0; h<string_cnt; h++) {
+            if(abm_supported || popcnt_supported) {
                 //Hamming Weight calculation
-                fir_str_hw = emulated_popcnt(fir_str_num); //Hamming Weight of first string
-                sec_str_hw = emulated_popcnt(sec_str_num); //Hamming Wight of second string
+                __asm__ volatile ("popcntq %2, %0 \n\t"  //Hamming Weight of first string
+                                  "popcntq %3, %1 \n\t" //Hamming Weight of second string
+                    :"=r"(fir_str_hw[h]), "=r"(sec_str_hw[h])
+                    :"r"(fir_str_num[h]), "r"(sec_str_num[h])
+                    :
+                );
+
+                __asm__ volatile ("popcntq %1, %0"  //Hamming Wight of second string
+                    :"=r"(sec_str_hw[h])
+                    :"r"(sec_str_num[h])
+                    :
+                );
 
                 //Hamming Distance of first string and second string
                 //Hamming Distance calculation HammingDistance(bitstring, bitstring2) == HammingWeight(bitstring ^ bitstring2)
-                temp = fir_str_num ^ sec_str_num;
-                hamming_distance = emulated_popcnt(temp);
-        }
-        if(abm_supported) {
-            //leading zeros calculation with LZCNT
-            __asm__ volatile ("lzcntq %0, %3 \n\t"
-                              "lzcntq %1, %4 \n\t"
-                              "lzcntq %2, %5 \n\t"
-                :"=r"(fir_str_lz), "=r"(sec_str_lz), "=r"(hamming_distance_lz)
-                :"r"(fir_str_num), "r"(sec_str_num), "r" (hamming_distance)
-                :
-            );
+                temp[h] = fir_str_num[h] ^ sec_str_num[h];
+                __asm__ volatile ("popcntq %1, %0"
+                    :"=r"(hamming_distance[h])
+                    :"r"(temp[h])
+                    :
+                );
+            } else {
+                //Hamming Weight calculation
+                fir_str_hw[h] = emulated_popcnt(fir_str_num[h]); //Hamming Weight of first string
+                sec_str_hw[h] = emulated_popcnt(sec_str_num[h]); //Hamming Wight of second string
 
-        } else {
-            //calculation of leading zeros with LZCNT
-            fir_str_lz = emulated_lzcnt(fir_str_num); //leading zeros count of first string bitstring
-            sec_str_lz = emulated_lzcnt(sec_str_num); //leading zeros count of second string bitstring
-            hamming_distance_lz = emulated_lzcnt(hamming_distance); //leading zeros count of hamming distance
+                //Hamming Distance of first string and second string
+                //Hamming Distance calculation HammingDistance(bitstring, bitstring2) == HammingWeight(bitstring ^ bitstring2)
+                temp[h] = fir_str_num[h] ^ sec_str_num[h];
+                hamming_distance[h] = emulated_popcnt(temp[h]);
+            }
+
+            if(abm_supported) {
+                //leading zeros calculation with LZCNT
+                __asm__ volatile ("lzcntq %0, %3 \n\t"
+                                  "lzcntq %1, %4 \n\t"
+                                  "lzcntq %2, %5 \n\t"
+                    :"=r"(fir_str_lz[h]), "=r"(sec_str_lz[h]), "=r"(hamming_distance_lz[h])
+                    :"r"(fir_str_num[h]), "r"(sec_str_num[h]), "r" (hamming_distance[h])
+                    :
+                );
+
+            } else {
+                //calculation of leading zeros with LZCNT
+                fir_str_lz[h] = emulated_lzcnt(fir_str_num[h]); //leading zeros count of first string bitstring
+                sec_str_lz[h] = emulated_lzcnt(sec_str_num[h]); //leading zeros count of second string bitstring
+                hamming_distance_lz[h] = emulated_lzcnt(hamming_distance[h]); //leading zeros count of hamming distance
+            }
         }
         gettimeofday(&end_time, NULL);
         time_sum += (double) (end_time.tv_usec - start_time.tv_usec);
@@ -173,8 +179,8 @@ int main(int argc, char *argv[]) {
     set_cpu_info(cpu_info);
 
     execution_time.ABM = abm_bench(cpu_info->ABM, cpu_info->POPCNT);
-
-    printf("ABM execution time: %f \r\n", execution_time.ABM);
+    char *em_str[2] = {" (emulated)", ""}; //string for output if bit not set
+    printf("ABM%s execution time: %f \r\n", em_str[cpu_info->ABM],execution_time.ABM);
 
     //freeing all allocated memory
     free(cpu_info);
