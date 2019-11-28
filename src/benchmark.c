@@ -17,7 +17,7 @@
 #include <errno.h>
 #include "cpuinfo.h"
 
-#define MEASUREMENT_ITERATIONS 100000
+#define MEASUREMENT_ITERATIONS 10000
 
 //***********************************************
 //************HELPER_FUNCTIONS**************
@@ -179,8 +179,10 @@ int main(int argc, char *argv[]) {
     set_cpu_info(cpu_info);
 
     execution_time.ABM = abm_bench(cpu_info->ABM, cpu_info->POPCNT);
+    execution_time.POPCNT = abm_bench(false, cpu_info->POPCNT);
     char *em_str[2] = {" (emulated)", ""}; //string for output if bit not set
     printf("ABM%s execution time: %f \r\n", em_str[cpu_info->ABM],execution_time.ABM);
+    printf("POPCNT%s execution time: %f \r\n", em_str[cpu_info->POPCNT], execution_time.POPCNT);
 
     //freeing all allocated memory
     free(cpu_info);
