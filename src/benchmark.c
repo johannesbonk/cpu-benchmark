@@ -18,6 +18,18 @@
 #include "cpuinfo.h"
 
 #define MEASUREMENT_ITERATIONS 10000
+#define STARTUP_PROMPT_ROWS 5
+#define STARTUP_PROMPT_COLUMNS 81
+
+//***********************************************
+//************GLOBAL_VARIABLES**************
+//***********************************************
+char startup_prompt[STARTUP_PROMPT_ROWS][STARTUP_PROMPT_COLUMNS] = {
+"   __________  __  __      ____                  __                         __",
+"  / ____/ __ \\/ / / /     / __ )___  ____  _____/ /_  ____ ___  ____ ______/ /__ ",
+" / /   / /_/ / / / /_____/ __  / _ \\/ __ \\/ ___/ __ \\/ __ `__ \\/ __ `/ ___/ //_/",
+"/ /___/ ____/ /_/ /_____/ /_/ /  __/ / / / /__/ / / / / / / / / /_/ / /  / ,<",
+"\\____/_/    \\____/     /_____/\\___/_/ /_/\\___/_/ /_/_/ /_/ /_/\\__,_/_/  /_/|_|"};
 
 //***********************************************
 //************HELPER_FUNCTIONS**************
@@ -112,8 +124,9 @@ double abm_bench(bool abm_supported, bool popcnt_supported) {
             }
         }
 
-        gettimeofday(&start_time, NULL);
         for(uint8_t h=0; h<string_cnt; h++) {
+            gettimeofday(&start_time, NULL);
+
             if(abm_supported || popcnt_supported) {
                 //Hamming Weight calculation
                 __asm__ volatile ("popcntq %2, %0 \n\t"  //Hamming Weight of first string
@@ -164,15 +177,24 @@ double abm_bench(bool abm_supported, bool popcnt_supported) {
                 sec_str_lz[h] = emulated_lzcnt(sec_str_num[h]); //leading zeros count of second string bitstring
                 hamming_distance_lz[h] = emulated_lzcnt(hamming_distance[h]); //leading zeros count of hamming distance
             }
+
+            gettimeofday(&end_time, NULL);
+            time_sum += (double) (end_time.tv_usec - start_time.tv_usec);
         }
-        gettimeofday(&end_time, NULL);
-        time_sum += (double) (end_time.tv_usec - start_time.tv_usec);
     }
 
     return (double) (time_sum/10);
 }
 
 int main(int argc, char *argv[]) {
+    // print ASCII art at program entry
+    for (char r = 0; r < STARTUP_PROMPT_ROWS; ++r){
+      for(char c = 0; c < STARTUP_PROMPT_COLUMNS; ++c){
+        printf("%c",startup_prompt[r][c]);
+      }
+      printf("\n");
+    }
+
     struct cpu_info *cpu_info = malloc(sizeof(*cpu_info)); //included from cpuinfo.h
     struct execution_time execution_time; //included from cpuinfo.h
 
